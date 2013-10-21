@@ -43,6 +43,8 @@ int main(int narg, char **args)
   void *mr = (void *) MR_create(MPI_COMM_WORLD);
   //MR_set_verbosity(mr, 2);
   MPI_Barrier(MPI_COMM_WORLD);
+int test = 1;:q
+
   nwords = MR_map(mr, narg - 1, &binMap, &args[1]);
   MR_collate(mr, NULL);
   nunique = MR_reduce(mr, &sum, NULL);
@@ -109,7 +111,7 @@ void sum(char *key, int keybytes, char *multivalue,
          int nvalues, int *valuebytes, void *kv, void *ptr)
 {
   MR_kv_add(kv, key, keybytes, (char *) &nvalues, sizeof(int));
-  printf("%c %d\n",key[0],nvalues);
+  printf("%i %d\n",key[0],nvalues);
 }
 
 /* ----------------------------------------------------------------------

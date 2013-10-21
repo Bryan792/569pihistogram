@@ -11,3 +11,9 @@ clean:
 
 test:
 	mpirun histogram input
+
+copy:
+	scp histogram rpi2:/root/569pihistogram/
+	scp histogram rpi3:/root/569pihistogram/
+	scp histogram rpi4:/root/569pihistogram/
+	scp histogram rpi5:/root/569pihistogram/
