@@ -10,7 +10,10 @@ clean:
 	rm *.o histogram
 
 test:
-	mpirun histogram input
+	mpirun histogram 10000.a
+
+testd:
+	mpirun -host rpi2,rpi3,rpi4,rpi5 -n 4 -prefix /usr/local histogram 10000.a
 
 copy:
 	scp histogram rpi2:/root/569pihistogram/

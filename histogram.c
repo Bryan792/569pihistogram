@@ -8,10 +8,12 @@
 #define round(x) ((x)>=0?(long)((x)+0.5):(long)((x)-0.5))
 
 void fileread(int, void *, void *);
+void newMap(int itask, char *str, int size, void *kv, void *ptr);
 void binMap(int, void *, void *);
 void sum(char *, int, char *, int, int *, void *, void *);
 int ncompare(char *, int, char *, int);
-void output(int, char *, int, char *, int, void *, void *);
+void m_prepareoutput(uint64_t, char *, int, char *,int, void *, void *);
+void output(uint64_t, char *, int, char *, int , void *, void *);
 
 typedef struct
 {
@@ -20,12 +22,17 @@ typedef struct
 
 /* ---------------------------------------------------------------------- */
 
+int myhash(char * key, int keysize){
+    return strtol(key, NULL, 10) %4;   
+}
+
 int main(int narg, char **args)
 {
   int me, nprocs;
   int nwords, nunique;
   double tstart, tstop;
   Count count;
+
   MPI_Init(&narg, &args);
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -36,41 +43,74 @@ int main(int narg, char **args)
     {
       printf("Syntax: cwordfreq file1 file2 ...\n");
     }
-
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
   void *mr = (void *) MR_create(MPI_COMM_WORLD);
   //MR_set_verbosity(mr, 2);
-  MPI_Barrier(MPI_COMM_WORLD);
-int test = 1;:q
 
-  nwords = MR_map(mr, narg - 1, &binMap, &args[1]);
-  MR_collate(mr, NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  int test = 1;
+
+  //nwords = MR_map(mr, narg - 1, &binMap, &args[1]);
+  nwords = MR_map_file_char(mr, nprocs, 1, &args[1], 0, 0, ' ', 100, &newMap, NULL);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  MR_collate(mr,NULL);
+
+  MPI_Barrier(MPI_COMM_WORLD);
   nunique = MR_reduce(mr, &sum, NULL);
+
   MPI_Barrier(MPI_COMM_WORLD);
-  printf("%d words\n%d unique\n", nwords, nunique);
-  count.n = 0;
-  count.limit = 10;
-  count.flag = 0;
-  MR_map_mr(mr, mr, &output, &count);
+//  MR_gather(mr, 1);
+
+  MR_map_mr(mr, mr, m_prepareoutput, NULL);
+
+MPI_Barrier(MPI_COMM_WORLD);
+  MR_gather(mr, 1);
+
   MPI_Barrier(MPI_COMM_WORLD);
-  /*MR_sort_values(mr,&ncompare);
+//  MR_collate(mr, NULL);
 
-  count.n = 0;
-  count.limit = 10;
-  count.flag = 0;
-  MR_map(mr,&output,&count);
+//  MPI_Barrier(MPI_COMM_WORLD);
+//  nunique = MR_reduce(mr, &sum, NULL);
+  
+printf("%d words\n%d unique\n", nwords, nunique);
 
-  MR_gather(mr,1);
-  MR_sort_values(mr,&ncompare);
+  //MR_map_mr(mr, mr, &output, NULL);
+  //MPI_Barrier(MPI_COMM_WORLD);
+  //MR_sort_values(mr,&ncompare);
 
-  count.n = 0;
-  count.limit = 10;
-  count.flag = 1;
-  MR_map(mr,&output,&count);
-  */ MR_destroy(mr);
+  MR_map_mr(mr, mr ,&output,NULL);
+
+  //MR_gather(mr,1);
+  //MR_sort_values(mr,&ncompare);
+
+
+  MR_destroy(mr);
   MPI_Finalize();
+}
+
+void newMap(int itask, char *str, int size, void *kv, void *ptr){
+    char *whitespace = " \t\n\f\r\0";
+   char *word = strtok(str, whitespace);
+   float f;
+   int i;
+   char key[10];
+
+   while (word)
+   {
+     f = strtof(word, NULL);
+//     f = (int)((f + 10) / .5);
+//     i = (int) f;
+
+     i = (int) ((f + 10) / .5);
+     sprintf(key, "%i", i);
+     MR_kv_add(kv, key, 10, NULL, 0);
+     //printf("%d\n",i );
+     word = strtok(NULL, whitespace);
+   }
+
 }
 
 void binMap(int itask, void *kv, void *ptr)
@@ -95,23 +135,32 @@ void binMap(int itask, void *kv, void *ptr)
   char *word = strtok(text, whitespace);
   float f;
   int i;
+  char key[10];
 
   while (word)
   {
     f = strtof(word, NULL);
     f = (int)((f + 10) / .5);
     i = (int) f;
-    MR_kv_add(kv, &i, sizeof(i), NULL, 0);
+
+    memset(key, 0, 10);
+    sprintf(key, "%i", i);
+
+    MR_kv_add(kv, key, sizeof(i), NULL, 0);
     //printf("%d\n",i );
     word = strtok(NULL, whitespace);
   }
 }
 
+
+
+// TODO: reduce function needs to add things up
+//reduce function
 void sum(char *key, int keybytes, char *multivalue,
          int nvalues, int *valuebytes, void *kv, void *ptr)
 {
   MR_kv_add(kv, key, keybytes, (char *) &nvalues, sizeof(int));
-  printf("%i %d\n",key[0],nvalues);
+  //printf("%s %d\n",key,nvalues);
 }
 
 /* ----------------------------------------------------------------------
@@ -138,27 +187,17 @@ int ncompare(char *p1, int len1, char *p2, int len2)
   }
 }
 
-void output(int itask, char *key, int keybytes, char *value,
+void m_prepareoutput(uint64_t itask, char *key, int keybytes, char *value,
+                     int valuebytes, void *kv, void *ptr)
+{
+  int n = *(int *) value;
+ 
+  MR_kv_add(kv, key, keybytes,(char *) &n,sizeof(int));
+}
+
+void output(uint64_t itask, char *key, int keybytes, char *value,
             int valuebytes, void *kv, void *ptr)
 {
   int n = *(int *) value;
-  printf("%s \n", key);
-  /*Count *count = (Count *) ptr;
-  count->n++;
-
-  if (count->n > count->limit)
-  {
-    return;
-  }
-
-  int n = *(int *) value;
-
-  if (count->flag)
-  {
-    printf("%d %s\n", n, key);
-  }
-  else
-  {
-    MR_kv_add(kv, key, keybytes, (char *) &n, sizeof(int));
-  }*/
+  printf("key:%s  value:%i\n", key, n);
 }
