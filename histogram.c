@@ -105,8 +105,9 @@ void newMap(int itask, char *str, int size, void *kv, void *ptr){
 //     i = (int) f;
 
      i = (int) ((f + 10) / .5);
-     sprintf(key, "%i", i);
-     MR_kv_add(kv, key, 10, NULL, 0);
+//     sprintf(key, "%i", i);
+//     MR_kv_add(kv, key, 10, NULL, 0);
+     MR_kv_add(kv, &i, sizeof(int), NULL, 0);
      //printf("%d\n",i );
      word = strtok(NULL, whitespace);
    }
@@ -160,7 +161,7 @@ void sum(char *key, int keybytes, char *multivalue,
          int nvalues, int *valuebytes, void *kv, void *ptr)
 {
   MR_kv_add(kv, key, keybytes, (char *) &nvalues, sizeof(int));
-  //printf("%s %d\n",key,nvalues);
+  printf("%s %d\n",key,nvalues);
 }
 
 /* ----------------------------------------------------------------------
@@ -199,5 +200,5 @@ void output(uint64_t itask, char *key, int keybytes, char *value,
             int valuebytes, void *kv, void *ptr)
 {
   int n = *(int *) value;
-  printf("key:%s  value:%i\n", key, n);
+  printf("key:%i  value:%i\n",*(int *) key, n);
 }
