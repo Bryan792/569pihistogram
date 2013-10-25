@@ -9,6 +9,7 @@
 
 void fileread(int, void *, void *);
 void newMap(int itask, char *str, int size, void *kv, void *ptr);
+void newMap2(int itask, char *str, int size, void *kv, void *ptr);
 void binMap(int, void *, void *);
 void sum(char *, int, char *, int, int *, void *, void *);
 int ncompare(char *, int, char *, int);
@@ -52,7 +53,8 @@ int main(int narg, char **args)
   MPI_Barrier(MPI_COMM_WORLD);
   int test = 1;
   //nwords = MR_map(mr, narg - 1, &binMap, &args[1]);
-  nwords = MR_map_file_char(mr, nprocs, 1, &args[1], 0, 0, ' ', 100, &newMap, NULL);
+  char *arg[2] = {args[1],args[2]};
+  nwords = MR_map_file_char(mr, 2, 1, arg, 0, 0, ' ', 100, &newMap, NULL);
   MPI_Barrier(MPI_COMM_WORLD);
   MR_collate(mr, NULL);
   MPI_Barrier(MPI_COMM_WORLD);
@@ -77,6 +79,22 @@ int main(int narg, char **args)
   MPI_Finalize();
 }
 
+void newMap2(int itask, char *str, int size, void *kv, void *ptr)
+{
+  char *whitespace = " \t\n\f\r\0";
+  char *word = strtok(str, whitespace);
+  float f;
+  int i;
+  char key[10];
+
+  while (word)
+  {
+    f = strtof(word, NULL);
+    i = (int) ((f + 10) / .5);
+    MR_kv_add(kv, &i, sizeof(int), NULL, 0);
+    word = strtok(NULL, whitespace);
+  }
+}
 void newMap(int itask, char *str, int size, void *kv, void *ptr)
 {
   char *whitespace = " \t\n\f\r\0";
@@ -88,13 +106,8 @@ void newMap(int itask, char *str, int size, void *kv, void *ptr)
   while (word)
   {
     f = strtof(word, NULL);
-//     f = (int)((f + 10) / .5);
-//     i = (int) f;
     i = (int) ((f + 10) / .5);
-//     sprintf(key, "%i", i);
-//     MR_kv_add(kv, key, 10, NULL, 0);
     MR_kv_add(kv, &i, sizeof(int), NULL, 0);
-    //printf("%d\n",i );
     word = strtok(NULL, whitespace);
   }
 }
