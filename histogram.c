@@ -12,6 +12,7 @@ void newMap(int itask, char *str, int size, void *kv, void *ptr);
 void newMap2(int itask, char *str, int size, void *kv, void *ptr);
 void binMap(int, void *, void *);
 void sum(char *, int, char *, int, int *, void *, void *);
+void sum2(char *, int, char *, int, int *, void *, void *);
 int ncompare(char *, int, char *, int);
 void m_prepareoutput(uint64_t, char *, int, char *, int, void *, void *);
 void output(uint64_t, char *, int, char *, int , void *, void *);
@@ -53,16 +54,17 @@ int main(int narg, char **args)
   MPI_Barrier(MPI_COMM_WORLD);
   int test = 1;
   //nwords = MR_map(mr, narg - 1, &binMap, &args[1]);
-  char *arg[2] = {args[1],args[2]};
-  nwords = MR_map_file_char(mr, 2, 1, arg, 0, 0, ' ', 100, &newMap, NULL);
+  char *arg[2] = {args[2], args[1]};
+  printf("%s %s\n", arg[0], arg[1]);
+  nwords = MR_map_file_char(mr, 2, 2, arg, 0, 0, ' ', 100, &newMap2, NULL);
   MPI_Barrier(MPI_COMM_WORLD);
   MR_collate(mr, NULL);
   MPI_Barrier(MPI_COMM_WORLD);
-  nunique = MR_reduce(mr, &sum, NULL);
+  nunique = MR_reduce(mr, &sum2, NULL);
   MPI_Barrier(MPI_COMM_WORLD);
 //  MR_gather(mr, 1);
-  MR_map_mr(mr, mr, m_prepareoutput, NULL);
-  MPI_Barrier(MPI_COMM_WORLD);
+//  MR_map_mr(mr, mr, m_prepareoutput, NULL);
+//  MPI_Barrier(MPI_COMM_WORLD);
   MR_gather(mr, 1);
   MPI_Barrier(MPI_COMM_WORLD);
 //  MR_collate(mr, NULL);
@@ -70,9 +72,12 @@ int main(int narg, char **args)
 //  nunique = MR_reduce(mr, &sum, NULL);
   printf("%d words\n%d unique\n", nwords, nunique);
   //MR_map_mr(mr, mr, &output, NULL);
-  //MPI_Barrier(MPI_COMM_WORLD);
-  //MR_sort_values(mr,&ncompare);
-  MR_map_mr(mr, mr , &output, NULL);
+  MR_sort_keys(mr,&ncompare);
+  MPI_Barrier(MPI_COMM_WORLD);
+  FILE * pFile;
+  pFile = fopen("result.out","w");
+  MR_map_mr(mr, mr , &output, pFile);
+  fclose(pFile);
   //MR_gather(mr,1);
   //MR_sort_values(mr,&ncompare);
   MR_destroy(mr);
@@ -86,15 +91,18 @@ void newMap2(int itask, char *str, int size, void *kv, void *ptr)
   float f;
   int i;
   char key[10];
+  int index = 0;
 
   while (word)
   {
     f = strtof(word, NULL);
     i = (int) ((f + 10) / .5);
-    MR_kv_add(kv, &i, sizeof(int), NULL, 0);
+    MR_kv_add(kv, &index, sizeof(int), &f, sizeof(float));
     word = strtok(NULL, whitespace);
+    index++;
   }
 }
+
 void newMap(int itask, char *str, int size, void *kv, void *ptr)
 {
   char *whitespace = " \t\n\f\r\0";
@@ -149,17 +157,34 @@ void binMap(int itask, void *kv, void *ptr)
   }
 }
 
-
-
-// TODO: reduce function needs to add things up
-//reduce function
 void sum(char *key, int keybytes, char *multivalue,
          int nvalues, int *valuebytes, void *kv, void *ptr)
 {
+  int i;
   MR_kv_add(kv, key, keybytes, (char *) &nvalues, sizeof(int));
-  printf("%s %d\n", key, nvalues);
+  float sum = 0;
+  for(i = 0; i < nvalues; i++)
+  {
+    sum+=*(float *)&(multivalue[i * *valuebytes]);
+//    printf("%f\n", *(float *)&(multivalue[i * *valuebytes]));
+  }
+  printf("%i %i %i %f\n", *(int *) key, nvalues, sum);
 }
 
+void sum2(char *key, int keybytes, char *multivalue,
+         int nvalues, int *valuebytes, void *kv, void *ptr)
+{
+  int i;
+  //MR_kv_add(kv, key, keybytes, (char *) &nvalues, sizeof(int));
+  float sum = 0;
+  for(i = 0; i < nvalues; i++)
+  {
+    sum+=*(float *)&(multivalue[i * *valuebytes]);
+//    printf("%f\n", *(float *)&(multivalue[i * *valuebytes]));
+  }
+  //printf("%i %i %i %f\n", *(int *) key, nvalues, sum);
+  MR_kv_add(kv, key, keybytes, &sum, sizeof(float));
+}
 /* ----------------------------------------------------------------------
    compare two counts
    order values by count, largest first
@@ -172,11 +197,11 @@ int ncompare(char *p1, int len1, char *p2, int len2)
 
   if (i1 > i2)
   {
-    return -1;
+    return 1;
   }
   else if (i1 < i2)
   {
-    return 1;
+    return -1;
   }
   else
   {
@@ -194,6 +219,6 @@ void m_prepareoutput(uint64_t itask, char *key, int keybytes, char *value,
 void output(uint64_t itask, char *key, int keybytes, char *value,
             int valuebytes, void *kv, void *ptr)
 {
-  int n = *(int *) value;
-  printf("key:%i  value:%i\n", *(int *) key, n);
+  fprintf((FILE *)ptr, "%.2f ",* (float *) value);
+  //printf("key:%i  value:%f\n", *(int *) key, *(float *)value);
 }
