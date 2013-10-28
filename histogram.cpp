@@ -21,6 +21,9 @@ void sum(char *, int, char *, int, int *, KeyValue *, void *);
 void sum2(char *, int, char *, int, int *, KeyValue *, void *);
 int ncompare(char *, int, char *, int);
 void output(uint64_t, char *, int, char *, int , KeyValue *, void *);
+void histoutput(uint64_t, char *, int, char *, int , KeyValue *, void *);
+void getHistogram(MapReduce *, char *);
+
 
 typedef struct
 {
@@ -55,43 +58,104 @@ int main(int narg, char **args)
   }
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
+  //MapReduce *mra = new MapReduce(MPI_COMM_WORLD);
+  //MapReduce *mrb = new MapReduce(MPI_COMM_WORLD);
   MapReduce *mra = new MapReduce();
   MapReduce *mrb = new MapReduce();
   mra->open();
   mrb->open();
-  //MR_set_verbosity(mr, 2);
   MPI_Barrier(MPI_COMM_WORLD);
   int test = 1;
-  //nwords = MR_map(mr, narg - 1, &binMap, &args[1]);
-  void *arg[4] = {args[2], args[1], mra, mrb};
+  void *arg[4] = {args[1], args[2], mra->kv, mrb->kv};
   printf("%s %s\n", arg[0], arg[1]);
   nwords = mr->map(nprocs, &fileread, arg);
-  //nwords = MR_map_file_char(mr, 2, 2, arg, 0, 0, ' ', 100, &newMap2, NULL);
-  MPI_Barrier(MPI_COMM_WORLD);
+  mra->close();
+  mrb->close();
   mr->collate(NULL);
   MPI_Barrier(MPI_COMM_WORLD);
   nunique = mr->reduce(&sum2, NULL);
   MPI_Barrier(MPI_COMM_WORLD);
-//  MR_gather(mr, 1);
-//  MR_map_mr(mr, mr, m_prepareoutput, NULL);
-//  MPI_Barrier(MPI_COMM_WORLD);
   mr->gather(1);
   MPI_Barrier(MPI_COMM_WORLD);
-//  MR_collate(mr, NULL);
-//  MPI_Barrier(MPI_COMM_WORLD);
-//  nunique = MR_reduce(mr, &sum, NULL);
-  printf("%d words\n%d unique\n", nwords, nunique);
-  //MR_map_mr(mr, mr, &output, NULL);
   mr->sort_keys(&ncompare);
   MPI_Barrier(MPI_COMM_WORLD);
   FILE * pFile;
   pFile = fopen("result.out", "w");
   mr->map(mr, &output, pFile);
+  MPI_Barrier(MPI_COMM_WORLD);
   fclose(pFile);
-  //MR_gather(mr,1);
-  //MR_sort_values(mr,&ncompare);
+//sum done
+  //getHistogram(mra, "hist.a");
+  //getHistogram(mr, "hist.a");
+  //getHistogram(mrb, "hist.b");
+ /* FILE * pFilea;
+  pFilea = fopen("test", "w");
+  mra->gather(1);
+  mra->map(mra, &histoutput, pFilea);
+  fclose(pFilea);*/
+
+  mra->collate(NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mra->reduce(&sum, NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mra->gather(1);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mra->sort_keys(&ncompare);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mra->gather(1);
+  MPI_Barrier(MPI_COMM_WORLD);
+  FILE * pFile3;
+  pFile3 = fopen("hist.a", "w");
+  mra->map(mra, &histoutput, pFile3);
+  fclose(pFile3);
+
+  mrb->collate(NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mrb->reduce(&sum, NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mrb->gather(1);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mrb->sort_keys(&ncompare);
+  MPI_Barrier(MPI_COMM_WORLD);
+  FILE * pFile4;
+  pFile4 = fopen("hist.b", "w");
+  mrb->map(mrb, &histoutput, pFile4);
+  fclose(pFile4);
+  mr->collate(NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mr->reduce(&sum, NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mr->gather(1);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mr->sort_keys(&ncompare);
+  MPI_Barrier(MPI_COMM_WORLD);
+  FILE * pFile2;
+  pFile2 = fopen("hist.c", "w");
+  mr->map(mr, &histoutput, pFile2);
+  fclose(pFile2);
+  
   delete mr;
   MPI_Finalize();
+}
+
+void getHistogram(MapReduce *mr, char * file)
+{
+  FILE * pFile2;
+  pFile2 = fopen("test", "w");
+  mr->map(mr, &histoutput, pFile2);
+  fclose(pFile2);
+  mr->collate(NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mr->reduce(&sum, NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mr->gather(1);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mr->sort_keys(&ncompare);
+  MPI_Barrier(MPI_COMM_WORLD);
+  FILE * pFile;
+  pFile = fopen(file, "w");
+  mr->map(mr, &histoutput, pFile);
+  fclose(pFile);
 }
 
 void fileread(int itask, KeyValue *kv, void *ptr)
@@ -106,9 +170,6 @@ void fileread(int itask, KeyValue *kv, void *ptr)
     char *file1 = (char *) arg[0];
     char *file2 = (char *) arg[1];
     char *files[2] = {file1, file2};
-    void *mra = (KeyValue *) arg[2];
-    void *mrb = (KeyValue *)arg[3];
-    void *kvs[2] = {mra, mrb};
     char *whitespace = " \t\n\f\r\0";
     float f;
     int i;
@@ -137,7 +198,9 @@ void fileread(int itask, KeyValue *kv, void *ptr)
       f = strtof(word, NULL);
       i = (int) ((f + 10) / .5);
       kv->add((char *)&index, sizeof(int), (char *) &f, sizeof(float));
-      ((MapReduce *)kvs[0])->kv->add((char *)&i, sizeof(int), NULL, 0);
+      KeyValue *kv2 = (KeyValue *) arg[2];
+  //    printf("%p\n",kv2);
+      kv2->add((char *)&i, sizeof(int),NULL, 0);
       word = strtok(NULL, whitespace);
       index++;
     }
@@ -165,7 +228,7 @@ void fileread(int itask, KeyValue *kv, void *ptr)
       f = strtof(word2, NULL);
       i = (int) ((f + 10) / .5);
       kv->add((char *)&index2, sizeof(int), (char *) &f, sizeof(float));
-      ((MapReduce *)kvs[1])->kv->add((char *)&i, sizeof(int), NULL, 0);
+      ((KeyValue *)arg[3])->add((char *)&i, sizeof(int),(char *)&i, sizeof(int));
       word2 = strtok(NULL, whitespace);
       index2++;
     }
@@ -249,17 +312,8 @@ void binMap(int itask, KeyValue *kv, void *ptr)
 void sum(char *key, int keybytes, char *multivalue,
          int nvalues, int *valuebytes, KeyValue *kv, void *ptr)
 {
-  int i;
   kv->add(key, keybytes, (char *) &nvalues, sizeof(int));
-  float sum = 0;
-
-  for(i = 0; i < nvalues; i++)
-  {
-    sum += *(float *) & (multivalue[i **valuebytes]);
-//    printf("%f\n", *(float *)&(multivalue[i * *valuebytes]));
-  }
-
-  printf("%i %i %i %f\n", *(int *) key, nvalues, sum);
+  //printf("%i %i %i \n", *(int *) key, nvalues);
 }
 
 void sum2(char *key, int keybytes, char *multivalue,
@@ -317,6 +371,15 @@ void m_prepareoutput(uint64_t itask, char *key, int keybytes, char *value,
 void output(uint64_t itask, char *key, int keybytes, char *value,
             int valuebytes, KeyValue *kv, void *ptr)
 {
+  int i = (int) ((*(float *)value + 10) / .5);
   fprintf((FILE *)ptr, "%.2f ", * (float *) value);
+  kv->add((char *)&i, sizeof(int), NULL, 0);
   //printf("key:%i  value:%f\n", *(int *) key, *(float *)value);
+}
+
+void histoutput(uint64_t itask, char *key, int keybytes, char *value,
+                int valuebytes, KeyValue *kv, void *ptr)
+{
+  fprintf((FILE *)ptr, "%i, %i\n", * (int *) key, * (int *) value);
+ // printf("key:%i  value:%f\n", *(int *) key, *(float *)value);
 }
