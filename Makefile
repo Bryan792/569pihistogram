@@ -7,13 +7,13 @@ histogram: histogram.o
 	mpic++ -g -O histogram.o /root/mrmpi-17Sep13/src/libmrmpi_mpicc.a -o histogram
 
 clean:
-	rm *.o histogram
+	rm *.o histogram hist.a hist.b hist.c result.out
 
 test:
 	mpirun histogram 10000.a
 
 testd:
-	mpirun -host rpi1,rpi2,rpi3,rpi4,rpi5 -n 5 -prefix /usr/local histogram 10000.a 10000.b
+	mpirun -host rpi1,rpi2,rpi3,rpi4,rpi5 -n 5 -prefix /usr/local histogram ${ARGS} 
 
 testj:
 	mpirun -host rpi1,rpi2,rpi3,rpi4,rpi5 -n 5 -prefix /usr/local jhist 10000.a 10000.b 

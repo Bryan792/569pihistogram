@@ -1,3 +1,9 @@
 *.swp
 *.o
 histogram
+*.a
+*.b
+hist.a
+hist.b
+hist.c
+result.out
