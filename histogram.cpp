@@ -371,7 +371,7 @@ void m_prepareoutput(uint64_t itask, char *key, int keybytes, char *value,
 void output(uint64_t itask, char *key, int keybytes, char *value,
             int valuebytes, KeyValue *kv, void *ptr)
 {
-  int i = (int) ((*(float *)value + 10) / .5);
+  int i = (int) ((*(float *)value + 20) / .5);
   fprintf((FILE *)ptr, "%.2f ", * (float *) value);
   kv->add((char *)&i, sizeof(int), NULL, 0);
   //printf("key:%i  value:%f\n", *(int *) key, *(float *)value);
