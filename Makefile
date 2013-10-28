@@ -1,4 +1,4 @@
-all: histogram
+all: histogram copy
 
 histogram.o: histogram.cpp
 	mpicc -g -O -I/root/mrmpi-17Sep13/src  -c  histogram.cpp
@@ -18,7 +18,7 @@ testd:
 testj:
 	mpirun -host rpi1,rpi2,rpi3,rpi4,rpi5 -n 5 -prefix /usr/local jhist 10000.a 10000.b 
 
-copy:
+copy: 
 	scp histogram rpi2:/root/569pihistogram/
 	scp histogram rpi3:/root/569pihistogram/
 	scp histogram rpi4:/root/569pihistogram/
@@ -29,3 +29,6 @@ copyj:
 	scp histogram rpi3:/root/569pihistogram/
 	scp histogram rpi4:/root/569pihistogram/
 	scp histogram rpi5:/root/569pihistogram/
+
+partb:
+	./partb.sh 10000.a 10000.b

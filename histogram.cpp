@@ -67,7 +67,7 @@ int main(int narg, char **args)
   MPI_Barrier(MPI_COMM_WORLD);
   int test = 1;
   void *arg[4] = {args[1], args[2], mra->kv, mrb->kv};
-  printf("%s %s\n", arg[0], arg[1]);
+  //printf("%s %s\n", arg[0], arg[1]);
   nwords = mr->map(nprocs, &fileread, arg);
   mra->close();
   mrb->close();
@@ -232,6 +232,14 @@ void fileread(int itask, KeyValue *kv, void *ptr)
       word2 = strtok(NULL, whitespace);
       index2++;
     }
+    //Needs this but untested
+    
+    if (index!=index2)
+    {
+      printf("ERROR: Different file size?\n");
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+   
   }
 }
 
