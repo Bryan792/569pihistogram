@@ -50,8 +50,8 @@ int main(int narg, char **args)
   }
 
   void *mr = (void *) MR_create(MPI_COMM_WORLD);
-  void *mra = (void *) MR_create_mpi_finalize();
-  void *mrb = (void *) MR_create_mpi_finalize();
+  void *mra = (void *) MR_create_mpi();
+  void *mrb = (void *) MR_create_mpi();
   MR_open(mra);
   MR_open(mrb);
   //MR_set_verbosity(mr, 2);
@@ -91,11 +91,7 @@ int main(int narg, char **args)
 
 void fileread(int itask, void *kv, void *ptr)
 {
-  char hostname[1024];
-  hostname[1023] = '\0';
-  gethostname(hostname, 1023);
-  printf("Hostname: %s %i\n", hostname, itask);
-  if(itask == 0 )
+  if(itask == 4 )
   {
     void **arg = (void **) ptr;
     char *file1 = arg[0];
@@ -136,8 +132,8 @@ void fileread(int itask, void *kv, void *ptr)
         f = strtof(word, NULL);
         printf("%f\n", f);
         i = (int) ((f + 10) / .5);
-        //MR_kv_add(kv, &index, sizeof(int), &f, sizeof(float));
-        MR_kv_add(((MapReduce *)kvs[j]).kv, &i, sizeof(int), NULL, 0);
+        MR_kv_add(kv, &index, sizeof(int), &f, sizeof(float));
+        MR_kv_add(kvs[j], &i, sizeof(int), NULL, 0);
         word = strtok(NULL, whitespace);
         index++;
       }
