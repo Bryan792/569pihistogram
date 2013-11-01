@@ -16,6 +16,7 @@ using namespace MAPREDUCE_NS;
 #define round(x) ((x)>=0?(long)((x)+0.5):(long)((x)-0.5))
 
 
+void fileread2(int itask, KeyValue *kv, void *ptr);
 void fileread(int, KeyValue *, void *);
 void * hb_function(void *);
 void * pingRecv(void *);
@@ -67,37 +68,37 @@ int main(int narg, char **args)
   {
     pthread_create(&thread1, NULL, hb_function, &me);
   }
-else
-{
-
+  else
+  {
+    printf("PID %d on ready for attach\n", getpid());
     pthread_create(&thread1, NULL, pingRecv, &me);
-sleep(10);
-}
+    sleep(10);
+  }
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
   //MapReduce *mra = new MapReduce(MPI_COMM_WORLD);
   //MapReduce *mrb = new MapReduce(MPI_COMM_WORLD);
-  MapReduce *mra = new MapReduce();
-  MapReduce *mrb = new MapReduce();
-  mra->open();
-  mrb->open();
+  MapReduce *mra = new MapReduce(MPI_COMM_WORLD);
+  MapReduce *mrb = new MapReduce(MPI_COMM_WORLD);
+//  mra->open();
+//  mrb->open();
   MPI_Barrier(MPI_COMM_WORLD);
   int test = 1;
   void *arg[4] = {args[1], args[2], mra->kv, mrb->kv};
   //printf("%s %s\n", arg[0], arg[1]);
-printf("starting map\n");
+  printf("starting map\n");
   nwords = mr->map(nprocs, &fileread, arg);
   MPI_Barrier(MPI_COMM_WORLD);
-printf("map done\n");
-  mra->close();
-  mrb->close();
-printf("%d mr closed\n",me);
+  printf("map done\n");
+//  mra->close();
+//  mrb->close();
+  printf("%d mr closed\n", me);
   mr->collate(NULL);
   MPI_Barrier(MPI_COMM_WORLD);
-printf("collate done\n");
+  printf("collate done\n");
   nunique = mr->reduce(&sum2, NULL);
   MPI_Barrier(MPI_COMM_WORLD);
-printf("reduce done\n");
+  printf("reduce done\n");
   mr->gather(1);
   MPI_Barrier(MPI_COMM_WORLD);
   mr->sort_keys(&ncompare);
@@ -112,11 +113,35 @@ printf("reduce done\n");
   //getHistogram(mr, "hist.a");
   //getHistogram(mrb, "hist.b");
   /* FILE * pFilea;
-printf("sum done\n");
+  printf("sum done\n");
    pFilea = fopen("test", "w");
    mra->gather(1);
    mra->map(mra, &histoutput, pFilea);
    fclose(pFilea);*/
+  printf("%d sum done\n", me);
+  mr->collate(NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mr->reduce(&sum, NULL);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mr->gather(1);
+  MPI_Barrier(MPI_COMM_WORLD);
+  mr->sort_keys(&ncompare);
+  MPI_Barrier(MPI_COMM_WORLD);
+  FILE * pFile2;
+  pFile2 = fopen("hist.c", "w");
+  mr->map(mr, &histoutput, pFile2);
+  MPI_Barrier(MPI_COMM_WORLD);
+  fclose(pFile2);
+  delete mr;
+  printf("%d c done\n", me);
+
+  mra->open();
+  mrb->open();
+  void *arg2[4] = {args[1], args[2], mra->kv, mrb->kv};
+  printf("%p %p\n",mra->kv,arg2[2]);
+  nwords = mra->map(nprocs, &fileread2, arg2);
+  mra->close();
+  mrb->close();
   mra->collate(NULL);
   MPI_Barrier(MPI_COMM_WORLD);
   mra->reduce(&sum, NULL);
@@ -131,6 +156,8 @@ printf("sum done\n");
   pFile3 = fopen("hist.a", "w");
   mra->map(mra, &histoutput, pFile3);
   fclose(pFile3);
+  delete mra;
+    
   mrb->collate(NULL);
   MPI_Barrier(MPI_COMM_WORLD);
   mrb->reduce(&sum, NULL);
@@ -143,22 +170,10 @@ printf("sum done\n");
   pFile4 = fopen("hist.b", "w");
   mrb->map(mrb, &histoutput, pFile4);
   fclose(pFile4);
-  mr->collate(NULL);
-  MPI_Barrier(MPI_COMM_WORLD);
-  mr->reduce(&sum, NULL);
-  MPI_Barrier(MPI_COMM_WORLD);
-  mr->gather(1);
-  MPI_Barrier(MPI_COMM_WORLD);
-  mr->sort_keys(&ncompare);
-  MPI_Barrier(MPI_COMM_WORLD);
-  FILE * pFile2;
-  pFile2 = fopen("hist.c", "w");
-  mr->map(mr, &histoutput, pFile2);
-  fclose(pFile2);
-  delete mr;
+  delete mrb;
+
   MPI_Barrier(MPI_COMM_WORLD);
   pthread_cancel(thread1);
-
   MPI_Finalize();
 //exit(0);
 }
@@ -194,10 +209,10 @@ void * hb_function(void *rank)
   {
     gettimeofday(&t2, NULL);
 
-    if((t2.tv_sec - t1.tv_sec) > 5)
+    if((t2.tv_sec - t1.tv_sec) > 10)
     {
       //send heartbeat
-      MPI_Isend(&heartbeatVal,1,MPI_INT,0,1337,MPI_COMM_WORLD,&request);
+      MPI_Isend(&heartbeatVal, 1, MPI_INT, 0, 1337, MPI_COMM_WORLD, &request);
       gettimeofday(&t1, NULL);
     }
 
@@ -211,50 +226,146 @@ void * pingRecv(void * ptr)
   timeval time[10], tnow;
   MPI_Status status;
   //need to initialize time
-	
-    gettimeofday(&time[0], NULL);
-    gettimeofday(&time[1], NULL);
-    gettimeofday(&time[2], NULL);
-    gettimeofday(&time[3], NULL);
+  gettimeofday(&time[0], NULL);
+  gettimeofday(&time[1], NULL);
+  gettimeofday(&time[2], NULL);
+  gettimeofday(&time[3], NULL);
+/*
   while(rank == -1)
   {
     //Recv
     int recvRank = 8;
     MPI_Request req;
-    //MPI_Recv(&recvRank, 1, MPI_INT, MPI_ANY_SOURCE, 1337, MPI_COMM_WORLD, &status);
+    //MPI_Recv(&recvRank, 1, MPI_INT, MPI_ANY_SOURCE, 1337, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Irecv(&recvRank, 1, MPI_INT, MPI_ANY_SOURCE, 1337, MPI_COMM_WORLD, &req);
+    MPI_Wait(&req, MPI_STATUS_IGNORE);
     printf("%d\n", recvRank);
-    gettimeofday(&tnow, NULL);
-if(recvRank > 10) continue;
-time[recvRank-1]=tnow;
-    if(tnow.tv_sec - time[0].tv_sec > 20)
-    {
-      rank = 1;
-    }
-    if(tnow.tv_sec - time[1].tv_sec > 20)
-    {
-      rank = 2;
-    }
-    if(tnow.tv_sec - time[2].tv_sec > 20)
-    {
-      rank = 3;
-    }
-    if(tnow.tv_sec - time[3].tv_sec > 20)
-    {
-      rank = 4;
-    }
+        gettimeofday(&tnow, NULL);
 
-    sleep(1);
+    if(recvRank > 10) continue;
+    time[recvRank-1]=tnow;
+        if(tnow.tv_sec - time[0].tv_sec > 60)
+        {
+          rank = 1;
+        }
+        if(tnow.tv_sec - time[1].tv_sec > 60)
+        {
+          rank = 2;
+        }
+        if(tnow.tv_sec - time[2].tv_sec > 60)
+        {
+          rank = 3;
+        }
+        if(tnow.tv_sec - time[3].tv_sec > 60)
+        {
+          rank = 4;
+        }
+    
+    sleep(2);
   }
-    printf("%d exiting\n", rank);
+*/
+  printf("%d exiting\n", rank);
 //exit(-1);
-/*  MPI_Group orig_group, new_group;
-  MPI_Comm new_comm;
-  MPI_Comm_group(MPI_COMM_WORLD, &orig_group);
-  MPI_Group_excl(orig_group, 4, &rank, &new_group);
-  MPI_Comm_create(MPI_COMM_WORLD, new_group, &new_comm);
-*/  //use new_comm as communicator for new mr
+  /*  MPI_Group orig_group, new_group;
+    MPI_Comm new_comm;
+    MPI_Comm_group(MPI_COMM_WORLD, &orig_group);
+    MPI_Group_excl(orig_group, 4, &rank, &new_group);
+    MPI_Comm_create(MPI_COMM_WORLD, new_group, &new_comm);
+  */  //use new_comm as communicator for new mr
 }
 
+void fileread2(int itask, KeyValue *kv, void *ptr)
+{
+  //char hostname[1024];
+  //hostname[1023] = '\0';
+  //gethostname(hostname, 1023);
+  //printf("Hostname: %s %i\n", hostname, itask);
+  if(itask == 0 )
+  {
+    printf("file1 started\n");
+    void **arg = (void **) ptr;
+    char *file1 = (char *) arg[0];
+    char *file2 = (char *) arg[1];
+    char *files[2] = {file1, file2};
+    char *whitespace = " \t\n\f\r\0";
+    float f;
+    int i;
+    char key[10];
+    int j;
+    int index = 0;
+    struct stat stbuf;
+    int flag = stat(files[0], &stbuf);
+
+    if (flag < 0)
+    {
+      printf("ERROR: Could not query file size\n");
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    int filesize = stbuf.st_size;
+    FILE *fp = fopen(files[0], "r");
+//wtf is this    char text[filesize + 1];
+    char *text = (char *) malloc(filesize + 1);
+    int nchar = fread(text, 1, filesize, fp);
+    text[nchar] = '\0';
+    fclose(fp);
+    char *word = strtok(text, whitespace);
+
+    while (word)
+    {
+      f = strtof(word, NULL);
+      i = (int) ((f + 10) / .5);
+     // kv->add((char *)&index, sizeof(int), (char *) &f, sizeof(float));
+      KeyValue *kv2 = (KeyValue *) arg[2];
+      //printf("%s\n",word);
+      kv2->add((char *)&i, sizeof(int), NULL, 0);
+      word = strtok(NULL, whitespace);
+      index++;
+    }
+
+    printf("file1 done\n");
+    free(text);
+    int index2 = 0;
+    struct stat stbuf2;
+    int flag2 = stat(files[1], &stbuf2);
+
+    if (flag2 < 0)
+    {
+      printf("ERROR: Could not query file size\n");
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    int filesize2 = stbuf2.st_size;
+    FILE *fp2 = fopen(files[1], "r");
+    //  char text2[filesize2 + 1];
+    char * text2 = (char *)malloc(filesize2 + 1);
+    int nchar2 = fread(text2, 1, filesize2, fp2);
+    text2[nchar2] = '\0';
+    fclose(fp2);
+    char *word2 = strtok(text2, whitespace);
+
+    while (word2)
+    {
+      f = strtof(word2, NULL);
+      i = (int) ((f + 10) / .5);
+   //   kv->add((char *)&index2, sizeof(int), (char *) &f, sizeof(float));
+      ((KeyValue *)arg[3])->add((char *)&i, sizeof(int), (char *)&i, sizeof(int));
+      word2 = strtok(NULL, whitespace);
+      index2++;
+    }
+
+    free(text2);
+    //Needs this but untested
+
+    if (index != index2)
+    {
+      printf("ERROR: Different file size?\n");
+      MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    printf("file2 done\n");
+  }
+}
 void fileread(int itask, KeyValue *kv, void *ptr)
 {
   //char hostname[1024];
@@ -285,7 +396,7 @@ void fileread(int itask, KeyValue *kv, void *ptr)
     int filesize = stbuf.st_size;
     FILE *fp = fopen(files[0], "r");
 //wtf is this    char text[filesize + 1];
-    char *text = (char *) malloc(filesize+1);
+    char *text = (char *) malloc(filesize + 1);
     int nchar = fread(text, 1, filesize, fp);
     text[nchar] = '\0';
     fclose(fp);
@@ -298,11 +409,12 @@ void fileread(int itask, KeyValue *kv, void *ptr)
       kv->add((char *)&index, sizeof(int), (char *) &f, sizeof(float));
       KeyValue *kv2 = (KeyValue *) arg[2];
       //    printf("%p\n",kv2);
-      kv2->add((char *)&i, sizeof(int), NULL, 0);
+  //    kv2->add((char *)&i, sizeof(int), NULL, 0);
       word = strtok(NULL, whitespace);
       index++;
     }
-printf("file1 done\n");
+
+    printf("file1 done\n");
     free(text);
     int index2 = 0;
     struct stat stbuf2;
@@ -317,7 +429,7 @@ printf("file1 done\n");
     int filesize2 = stbuf2.st_size;
     FILE *fp2 = fopen(files[1], "r");
     //  char text2[filesize2 + 1];
-    char * text2 = (char *)malloc(filesize2+1);
+    char * text2 = (char *)malloc(filesize2 + 1);
     int nchar2 = fread(text2, 1, filesize2, fp2);
     text2[nchar2] = '\0';
     fclose(fp2);
@@ -328,7 +440,7 @@ printf("file1 done\n");
       f = strtof(word2, NULL);
       i = (int) ((f + 10) / .5);
       kv->add((char *)&index2, sizeof(int), (char *) &f, sizeof(float));
-      ((KeyValue *)arg[3])->add((char *)&i, sizeof(int), (char *)&i, sizeof(int));
+   //   ((KeyValue *)arg[3])->add((char *)&i, sizeof(int), (char *)&i, sizeof(int));
       word2 = strtok(NULL, whitespace);
       index2++;
     }
@@ -341,7 +453,8 @@ printf("file1 done\n");
       printf("ERROR: Different file size?\n");
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
-printf("file2 done\n");
+
+    printf("file2 done\n");
   }
 }
 
