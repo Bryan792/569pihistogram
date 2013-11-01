@@ -1,10 +1,10 @@
 all: histogram copy
 
 histogram.o: histogram.cpp
-	mpicc -g -O -I/root/mrmpi-17Sep13/src  -c  histogram.cpp
+	mpicc -g -O3 -I/root/mrmpi-17Sep13/src  -c  histogram.cpp
 
 histogram: histogram.o
-	mpic++ -g -O histogram.o /root/mrmpi-17Sep13/src/libmrmpi_mpicc.a -o histogram
+	mpic++ -g -O3 histogram.o /root/mrmpi-17Sep13/src/libmrmpi_mpicc.a -o histogram
 
 
 histogram.bryan.o:

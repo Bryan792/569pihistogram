@@ -85,13 +85,19 @@ sleep(10);
   int test = 1;
   void *arg[4] = {args[1], args[2], mra->kv, mrb->kv};
   //printf("%s %s\n", arg[0], arg[1]);
+printf("starting map\n");
   nwords = mr->map(nprocs, &fileread, arg);
+  MPI_Barrier(MPI_COMM_WORLD);
+printf("map done\n");
   mra->close();
   mrb->close();
+printf("%d mr closed\n",me);
   mr->collate(NULL);
   MPI_Barrier(MPI_COMM_WORLD);
+printf("collate done\n");
   nunique = mr->reduce(&sum2, NULL);
   MPI_Barrier(MPI_COMM_WORLD);
+printf("reduce done\n");
   mr->gather(1);
   MPI_Barrier(MPI_COMM_WORLD);
   mr->sort_keys(&ncompare);
@@ -106,6 +112,7 @@ sleep(10);
   //getHistogram(mr, "hist.a");
   //getHistogram(mrb, "hist.b");
   /* FILE * pFilea;
+printf("sum done\n");
    pFilea = fopen("test", "w");
    mra->gather(1);
    mra->map(mra, &histoutput, pFilea);
@@ -190,7 +197,7 @@ void * hb_function(void *rank)
     if((t2.tv_sec - t1.tv_sec) > 5)
     {
       //send heartbeat
-     MPI_Isend(&heartbeatVal,1,MPI_INT,0,1337,MPI_COMM_WORLD,&request);
+      MPI_Isend(&heartbeatVal,1,MPI_INT,0,1337,MPI_COMM_WORLD,&request);
       gettimeofday(&t1, NULL);
     }
 
@@ -214,7 +221,7 @@ void * pingRecv(void * ptr)
     //Recv
     int recvRank = 8;
     MPI_Request req;
-    MPI_Recv(&recvRank, 1, MPI_INT, MPI_ANY_SOURCE, 1337, MPI_COMM_WORLD, &status);
+    //MPI_Recv(&recvRank, 1, MPI_INT, MPI_ANY_SOURCE, 1337, MPI_COMM_WORLD, &status);
     printf("%d\n", recvRank);
     gettimeofday(&tnow, NULL);
 if(recvRank > 10) continue;
@@ -295,7 +302,7 @@ void fileread(int itask, KeyValue *kv, void *ptr)
       word = strtok(NULL, whitespace);
       index++;
     }
-
+printf("file1 done\n");
     free(text);
     int index2 = 0;
     struct stat stbuf2;
@@ -334,6 +341,7 @@ void fileread(int itask, KeyValue *kv, void *ptr)
       printf("ERROR: Different file size?\n");
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
+printf("file2 done\n");
   }
 }
 
