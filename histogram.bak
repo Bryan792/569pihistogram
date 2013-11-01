@@ -4,12 +4,9 @@
 #include "stdint.h"
 #include "string.h"
 #include "sys/stat.h"
-#include "pthread.h"
 //#include "cmapreduce.h"
-#include "sys/time.h"
 #include "mapreduce.h"
 #include "keyvalue.h"
-#include "unistd.h"
 
 using namespace MAPREDUCE_NS;
 
@@ -17,7 +14,6 @@ using namespace MAPREDUCE_NS;
 
 
 void fileread(int, KeyValue *, void *);
-void * hb_function(void *);
 void newMap(int itask, char *str, int size, KeyValue *kv, void *ptr);
 void newMap2(int itask, char *str, int size, KeyValue *kv, void *ptr);
 void binMap(int, KeyValue *, void *);
@@ -47,7 +43,6 @@ int main(int narg, char **args)
   int nwords, nunique;
   double tstart, tstop;
   Count count;
-  pthread_t thread1;
   MPI_Init(&narg, &args);
   MPI_Comm_rank(MPI_COMM_WORLD, &me);
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -57,15 +52,9 @@ int main(int narg, char **args)
     if (me == 0)
     {
       printf("Syntax: cwordfreq file1 file2 ...\n");
-          
     }
 
     MPI_Abort(MPI_COMM_WORLD, 1);
-  }
-	
-
-  if (me != 0) {
-    pthread_create(&thread1, NULL, hb_function, &me);
   }
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
@@ -169,24 +158,6 @@ void getHistogram(MapReduce *mr, char * file)
   fclose(pFile);
 }
 
-void * hb_function(void *rank) {
-  timeval t1, t2;
-  gettimeofday(&t1, NULL);
-  int heartbeatVal = *((int *)rank);
-
-  while(1) {
-    gettimeofday(&t2, NULL);
-    
-    if((t2.tv_sec - t1.tv_sec) > 5) {
-       //send heartbeat
-       //MPI_Send(&heartbeatVal,1,MPI_INT,0,1,MPI_COMM_WORLD); 
-       gettimeofday(&t1, NULL);
-    }
-
-    sleep(1);
-  }
-}
-
 void fileread(int itask, KeyValue *kv, void *ptr)
 {
   //char hostname[1024];
@@ -216,8 +187,7 @@ void fileread(int itask, KeyValue *kv, void *ptr)
 
     int filesize = stbuf.st_size;
     FILE *fp = fopen(files[0], "r");
-//wtf is this    char text[filesize + 1];
-    char *text= (char *) malloc(filesize);
+    char text[filesize + 1];
     int nchar = fread(text, 1, filesize, fp);
     text[nchar] = '\0';
     fclose(fp);
@@ -234,7 +204,6 @@ void fileread(int itask, KeyValue *kv, void *ptr)
       word = strtok(NULL, whitespace);
       index++;
     }
-    free(text);
 
     int index2 = 0;
     struct stat stbuf2;
@@ -248,8 +217,7 @@ void fileread(int itask, KeyValue *kv, void *ptr)
 
     int filesize2 = stbuf2.st_size;
     FILE *fp2 = fopen(files[1], "r");
-  //  char text2[filesize2 + 1];
-    char * text2 = (char *)malloc(filesize2);
+    char text2[filesize2 + 1];
     int nchar2 = fread(text2, 1, filesize2, fp2);
     text2[nchar2] = '\0';
     fclose(fp2);
@@ -264,8 +232,6 @@ void fileread(int itask, KeyValue *kv, void *ptr)
       word2 = strtok(NULL, whitespace);
       index2++;
     }
-
-    free(text2);
     //Needs this but untested
     
     if (index!=index2)

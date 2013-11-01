@@ -18,6 +18,7 @@ using namespace MAPREDUCE_NS;
 
 void fileread(int, KeyValue *, void *);
 void * hb_function(void *);
+void * pingRecv(void *);
 void newMap(int itask, char *str, int size, KeyValue *kv, void *ptr);
 void newMap2(int itask, char *str, int size, KeyValue *kv, void *ptr);
 void binMap(int, KeyValue *, void *);
@@ -57,16 +58,21 @@ int main(int narg, char **args)
     if (me == 0)
     {
       printf("Syntax: cwordfreq file1 file2 ...\n");
-          
     }
 
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
-	
 
-  if (me != 0) {
+  if (me != 0)
+  {
     pthread_create(&thread1, NULL, hb_function, &me);
   }
+else
+{
+
+    pthread_create(&thread1, NULL, pingRecv, &me);
+sleep(10);
+}
 
   MapReduce *mr = new MapReduce(MPI_COMM_WORLD);
   //MapReduce *mra = new MapReduce(MPI_COMM_WORLD);
@@ -99,12 +105,11 @@ int main(int narg, char **args)
   //getHistogram(mra, "hist.a");
   //getHistogram(mr, "hist.a");
   //getHistogram(mrb, "hist.b");
- /* FILE * pFilea;
-  pFilea = fopen("test", "w");
-  mra->gather(1);
-  mra->map(mra, &histoutput, pFilea);
-  fclose(pFilea);*/
-
+  /* FILE * pFilea;
+   pFilea = fopen("test", "w");
+   mra->gather(1);
+   mra->map(mra, &histoutput, pFilea);
+   fclose(pFilea);*/
   mra->collate(NULL);
   MPI_Barrier(MPI_COMM_WORLD);
   mra->reduce(&sum, NULL);
@@ -119,7 +124,6 @@ int main(int narg, char **args)
   pFile3 = fopen("hist.a", "w");
   mra->map(mra, &histoutput, pFile3);
   fclose(pFile3);
-
   mrb->collate(NULL);
   MPI_Barrier(MPI_COMM_WORLD);
   mrb->reduce(&sum, NULL);
@@ -144,9 +148,12 @@ int main(int narg, char **args)
   pFile2 = fopen("hist.c", "w");
   mr->map(mr, &histoutput, pFile2);
   fclose(pFile2);
-  
   delete mr;
+  MPI_Barrier(MPI_COMM_WORLD);
+  pthread_cancel(thread1);
+
   MPI_Finalize();
+//exit(0);
 }
 
 void getHistogram(MapReduce *mr, char * file)
@@ -169,22 +176,76 @@ void getHistogram(MapReduce *mr, char * file)
   fclose(pFile);
 }
 
-void * hb_function(void *rank) {
+void * hb_function(void *rank)
+{
   timeval t1, t2;
   gettimeofday(&t1, NULL);
   int heartbeatVal = *((int *)rank);
+  MPI_Request request;
 
-  while(1) {
+  while(1)
+  {
     gettimeofday(&t2, NULL);
-    
-    if((t2.tv_sec - t1.tv_sec) > 5) {
-       //send heartbeat
-       //MPI_Send(&heartbeatVal,1,MPI_INT,0,1,MPI_COMM_WORLD); 
-       gettimeofday(&t1, NULL);
+
+    if((t2.tv_sec - t1.tv_sec) > 5)
+    {
+      //send heartbeat
+     MPI_Isend(&heartbeatVal,1,MPI_INT,0,1337,MPI_COMM_WORLD,&request);
+      gettimeofday(&t1, NULL);
     }
 
     sleep(1);
   }
+}
+
+void * pingRecv(void * ptr)
+{
+  int rank = -1;
+  timeval time[10], tnow;
+  MPI_Status status;
+  //need to initialize time
+	
+    gettimeofday(&time[0], NULL);
+    gettimeofday(&time[1], NULL);
+    gettimeofday(&time[2], NULL);
+    gettimeofday(&time[3], NULL);
+  while(rank == -1)
+  {
+    //Recv
+    int recvRank = 8;
+    MPI_Request req;
+    MPI_Recv(&recvRank, 1, MPI_INT, MPI_ANY_SOURCE, 1337, MPI_COMM_WORLD, &status);
+    printf("%d\n", recvRank);
+    gettimeofday(&tnow, NULL);
+if(recvRank > 10) continue;
+time[recvRank-1]=tnow;
+    if(tnow.tv_sec - time[0].tv_sec > 20)
+    {
+      rank = 1;
+    }
+    if(tnow.tv_sec - time[1].tv_sec > 20)
+    {
+      rank = 2;
+    }
+    if(tnow.tv_sec - time[2].tv_sec > 20)
+    {
+      rank = 3;
+    }
+    if(tnow.tv_sec - time[3].tv_sec > 20)
+    {
+      rank = 4;
+    }
+
+    sleep(1);
+  }
+    printf("%d exiting\n", rank);
+//exit(-1);
+/*  MPI_Group orig_group, new_group;
+  MPI_Comm new_comm;
+  MPI_Comm_group(MPI_COMM_WORLD, &orig_group);
+  MPI_Group_excl(orig_group, 4, &rank, &new_group);
+  MPI_Comm_create(MPI_COMM_WORLD, new_group, &new_comm);
+*/  //use new_comm as communicator for new mr
 }
 
 void fileread(int itask, KeyValue *kv, void *ptr)
@@ -217,7 +278,7 @@ void fileread(int itask, KeyValue *kv, void *ptr)
     int filesize = stbuf.st_size;
     FILE *fp = fopen(files[0], "r");
 //wtf is this    char text[filesize + 1];
-    char *text= (char *) malloc(filesize);
+    char *text = (char *) malloc(filesize+1);
     int nchar = fread(text, 1, filesize, fp);
     text[nchar] = '\0';
     fclose(fp);
@@ -229,13 +290,13 @@ void fileread(int itask, KeyValue *kv, void *ptr)
       i = (int) ((f + 10) / .5);
       kv->add((char *)&index, sizeof(int), (char *) &f, sizeof(float));
       KeyValue *kv2 = (KeyValue *) arg[2];
-  //    printf("%p\n",kv2);
-      kv2->add((char *)&i, sizeof(int),NULL, 0);
+      //    printf("%p\n",kv2);
+      kv2->add((char *)&i, sizeof(int), NULL, 0);
       word = strtok(NULL, whitespace);
       index++;
     }
-    free(text);
 
+    free(text);
     int index2 = 0;
     struct stat stbuf2;
     int flag2 = stat(files[1], &stbuf2);
@@ -248,8 +309,8 @@ void fileread(int itask, KeyValue *kv, void *ptr)
 
     int filesize2 = stbuf2.st_size;
     FILE *fp2 = fopen(files[1], "r");
-  //  char text2[filesize2 + 1];
-    char * text2 = (char *)malloc(filesize2);
+    //  char text2[filesize2 + 1];
+    char * text2 = (char *)malloc(filesize2+1);
     int nchar2 = fread(text2, 1, filesize2, fp2);
     text2[nchar2] = '\0';
     fclose(fp2);
@@ -260,20 +321,19 @@ void fileread(int itask, KeyValue *kv, void *ptr)
       f = strtof(word2, NULL);
       i = (int) ((f + 10) / .5);
       kv->add((char *)&index2, sizeof(int), (char *) &f, sizeof(float));
-      ((KeyValue *)arg[3])->add((char *)&i, sizeof(int),(char *)&i, sizeof(int));
+      ((KeyValue *)arg[3])->add((char *)&i, sizeof(int), (char *)&i, sizeof(int));
       word2 = strtok(NULL, whitespace);
       index2++;
     }
 
     free(text2);
     //Needs this but untested
-    
-    if (index!=index2)
+
+    if (index != index2)
     {
       printf("ERROR: Different file size?\n");
       MPI_Abort(MPI_COMM_WORLD, 1);
     }
-   
   }
 }
 
@@ -423,5 +483,5 @@ void histoutput(uint64_t itask, char *key, int keybytes, char *value,
                 int valuebytes, KeyValue *kv, void *ptr)
 {
   fprintf((FILE *)ptr, "%i, %i\n", * (int *) key, * (int *) value);
- // printf("key:%i  value:%f\n", *(int *) key, *(float *)value);
+// printf("key:%i  value:%f\n", *(int *) key, *(float *)value);
 }
