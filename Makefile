@@ -1,4 +1,4 @@
-all: watchdog histogram copy
+all: watchdog histogramb copyb
 
 histogram.o: histogram.cpp
 	mpicc -g -O3 -I/root/mrmpi-17Sep13/src  -c  histogram.cpp
