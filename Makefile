@@ -1,4 +1,4 @@
-all: histogram copy
+all: watchdog histogram copy
 
 histogram.o: histogram.cpp
 	mpicc -g -O3 -I/root/mrmpi-17Sep13/src  -c  histogram.cpp
@@ -18,6 +18,9 @@ clean:
 
 test:
 	mpirun histogram 10000.a
+
+watchdog: watchdog.cpp
+	gcc -fno-exceptions -g watchdog.cpp -o watchdog
 
 testip:
 	mpirun -host 192.168.1.149,192.168.1.136,192.168.1.100,192.168.1.140,192.168.1.129 -n 5 -prefix /usr/local histogram ${ARGS}

@@ -80,8 +80,8 @@ int main(int narg, char **args)
   void *arg[4] = {args[1], args[2], mra->kv, mrb->kv};
   //printf("%s %s\n", arg[0], arg[1]);
   nwords = mr->map(nprocs, &fileread, arg);
-  mra->close();
-  mrb->close();
+  //mra->close();
+  //mrb->close();
   mr->collate(NULL);
   MPI_Barrier(MPI_COMM_WORLD);
   nunique = mr->reduce(&sum2, NULL);
@@ -132,6 +132,7 @@ int main(int narg, char **args)
   pFile4 = fopen("hist.b", "w");
   mrb->map(mrb, &histoutput, pFile4);
   fclose(pFile4);
+
   mr->collate(NULL);
   MPI_Barrier(MPI_COMM_WORLD);
   mr->reduce(&sum, NULL);
@@ -144,8 +145,11 @@ int main(int narg, char **args)
   pFile2 = fopen("hist.c", "w");
   mr->map(mr, &histoutput, pFile2);
   fclose(pFile2);
-  
-  delete mr;
+ 
+  mra->close();
+  mrb->close();
+
+  //delete mr;
   MPI_Finalize();
 }
 
